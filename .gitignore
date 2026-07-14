@@ -1,0 +1,23 @@
+# Environments / caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/
+
+# Dataset (Fashionpedia val_test2020 — download separately, see README)
+val_test2020/
+
+# Generated index + caches (rebuilt by indexer/build_index.py)
+data/
+
+# Labelling working artifacts (~17 MB of contact sheets).
+# The judgments they produced are committed: eval/relevance.json + criteria.
+eval/pool/*.png
+
+# PDF build intermediate
+deliverable/writeup.html
+
+# Internal assignment brief — not part of the deliverable.
+# Delete this line to publish it.
+BUILD_SPEC.md

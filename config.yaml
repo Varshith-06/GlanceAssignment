@@ -1,0 +1,132 @@
+# Central configuration — paths, models, and all tunable ML knobs.
+# Rerank weights live here so experiments never require code edits.
+
+paths:
+  dataset_dir: val_test2020/test        # source pool of images (Fashionpedia val/test 2020)
+  raw_dir: data/raw                     # subsampled working set
+  metadata_file: data/metadata.jsonl    # one structured record per indexed image
+  chroma_dir: data/chroma               # persistent vector DB
+  collection_name: fashion
+  vanilla_cache: data/vanilla_clip_embeddings.npz  # ablation-only cache
+
+models:
+  fashion_clip: patrickjohncyh/fashion-clip     # CLIP fine-tuned on 800K fashion pairs
+  vanilla_clip: openai/clip-vit-base-patch32    # ablation baseline only
+  detector: valentinafeve/yolos-fashionpedia    # garment detector (Fashionpedia categories)
+
+index:
+  num_images: 3200         # full val_test2020 pool (spec minimum was 500-1000)
+  seed: 42
+  # Recall-oriented: keep low-confidence detections and let the reranker's
+  # soft scoring absorb the noise. A missed garment costs more than a spurious
+  # one (spurious wrong-colour matches floor out at category_only_credit).
+  detector_threshold: 0.25
+  batch_size: 16
+
+search:
+  # Stage 1 dense-recall pool. A/B at full corpus: widening to 100 HURT
+  # (complex P@5 0.40 -> 0.20) — the misses were reranker demotions of
+  # detector-blind images, not recall failures, and the wider pool only
+  # imported extra distractors above the survivors. 50 wins on evidence.
+  top_n: 50
+  top_k: 5    # final results returned
+  alpha: 0.45 # weight on FashionCLIP cosine similarity
+  beta: 0.55  # weight on structured attribute-match score
+
+rerank:
+  w_binding: 0.6       # garment+color binding — the compositional differentiator
+  w_formality: 0.2
+  w_environment: 0.2
+  # LAB delta-E at which colour credit decays to the floor. Calibrated so
+  # perceptual NEIGHBOURS score meaningfully (navy vs blue dE~42 -> ~0.58;
+  # maroon vs red dE~31 -> ~0.69) while opposite colours bottom out (white vs
+  # red dE~93 -> floor). A/B on the full corpus: tightening to 80 cut the
+  # beige-toward-yellow leak (0.45 -> 0.31) but dropped complex-query P@5
+  # from 0.40 to 0.20 — the query's true matches are navy/denim tops living
+  # in exactly the 40-50 dE band the tightening punished. 100 wins on net.
+  # (45, the original value, sat below palette-anchor spacing and reduced
+  # scoring to exact-name-or-floor — the soft match never fired.)
+  color_soft_max: 100.0
+  # Floor for a garment seen in a contradicting colour. Kept near zero:
+  # observing the wrong colour is strong counter-evidence, and must rank BELOW
+  # absent_credit (garment never detected = weak evidence).
+  category_only_credit: 0.05
+  # Achromatic gate: a garment whose measured LAB chroma (sqrt(a^2+b^2)) is
+  # below garment_chroma_max gets NO soft credit toward a chromatic query
+  # (query chroma above query_chroma_min) — colourless fabric is evidence of
+  # no colour, not weak evidence of the queried one. Full-corpus measurements:
+  # black shirts sit at chroma 5-8 (were leaking 0.30 toward "blue"), while
+  # genuinely blue-hued garments keep chroma >= ~15 (navy 24, bluish-gray 15).
+  # Achromatic queries (white/black/gray, chroma < 30) bypass the gate.
+  achromatic_gate:
+    query_chroma_min: 30.0
+    garment_chroma_max: 12.0
+  # Clause credit when NO garment of the queried category was detected at
+  # all. Lowered from 0.3 after full-corpus error analysis: at 0.3 it nearly
+  # equalled genuine soft-colour credit (~0.32 for a bluish-gray tee vs
+  # "blue"), letting garmentless park photos ride the environment score past
+  # true matches. Still well above the wrong-colour floor (0.05): absence is
+  # weak evidence, contradiction is strong.
+  absent_credit: 0.2
+
+# Named palette (RGB 0-255). Converted to LAB at load time; rerank soft-matches
+# in LAB because it is perceptually uniform (delta-E ~ human colour difference).
+colors:
+  black:  [20, 20, 20]
+  white:  [245, 245, 245]
+  gray:   [128, 128, 128]
+  red:    [200, 30, 35]
+  orange: [235, 120, 25]
+  yellow: [240, 210, 40]
+  green:  [50, 130, 60]
+  blue:   [40, 90, 190]
+  navy:   [25, 35, 80]
+  purple: [120, 60, 160]
+  pink:   [235, 130, 170]
+  brown:  [110, 70, 40]
+  beige:  [215, 190, 160]
+  denim:  [70, 100, 150]
+
+# Query-side soft labels: the query embedding is scored against the same
+# prompt banks as images, giving a confidence distribution per axis. A
+# three-band trust ladder fuses it with the keyword parser:
+#   max-prob < drop           -> use keyword result alone (axis drops if none)
+#   drop <= max-prob < trust  -> keyword wins conflicts (soft dist otherwise)
+#   max-prob >= trust         -> embedding wins even over a keyword hit
+# Thresholds calibrated at temperature 30 on specified-vs-unspecified probes:
+# environment separates cleanly (spec 0.61-0.99 vs unspec 0.35-0.57);
+# formality is casual-biased (plain garment queries ~0.65-0.70), so its drop
+# sits higher and its trust sits at 0.80 so "smart casual" (emb casual 0.81)
+# beats the keyword parser's false "formal" hit on the word "smart".
+query_soft:
+  # Below the drop threshold: "keyword" falls back to the keyword parse alone;
+  # "drop" discards the axis even when a keyword fired. Both were evaluated:
+  # identical on every benchmark metric (the labelled queries never put a
+  # keyword hit under the drop gate). "keyword" is kept because a keyword hit
+  # is a literal token the user typed — the axis WAS specified — and the
+  # unspecified-axis lock-on that the drop band guards against can only enter
+  # through the embedding path, which both variants treat identically. "drop"
+  # would let an under-confident embedding veto explicit user language (e.g.
+  # "a formal look": keyword formal, embedding AGREES at 0.61 conf — below the
+  # casual-biased formality gate — so "drop" discards a correct constraint).
+  below_drop: keyword
+  temperature: 30.0
+  formality:
+    drop: 0.75
+    trust: 0.80
+  environment:
+    drop: 0.60
+    trust: 0.90
+
+# Zero-shot prompt banks (used at index time; scores stored per image so the
+# reranker can soft-match instead of hard-filtering on an argmax label).
+formality_prompts:
+  formal: "a person wearing formal business attire, a suit or dress shirt"
+  casual: "a person wearing a casual everyday outfit"
+  outerwear: "a person wearing outerwear such as a coat, raincoat or jacket"
+
+environment_prompts:
+  office: "a photo taken inside a modern office or workplace"
+  street: "a photo taken on a city street or urban sidewalk"
+  park: "a photo taken outdoors in a park or garden with greenery"
+  home: "a photo taken indoors at home in a living room or bedroom"

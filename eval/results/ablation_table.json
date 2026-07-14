@@ -1,0 +1,76 @@
+{
+  "per_query_p5": {
+    "attribute": {
+      "vanilla_clip_dense": 0.6,
+      "fashionclip_dense": 0.6,
+      "hybrid_full": 0.8
+    },
+    "contextual": {
+      "vanilla_clip_dense": 0.4,
+      "fashionclip_dense": 1.0,
+      "hybrid_full": 0.8
+    },
+    "complex": {
+      "vanilla_clip_dense": 0.2,
+      "fashionclip_dense": 0.4,
+      "hybrid_full": 0.4
+    },
+    "style": {
+      "vanilla_clip_dense": 0.8,
+      "fashionclip_dense": 1.0,
+      "hybrid_full": 1.0
+    },
+    "compositional": {
+      "vanilla_clip_dense": 0.8,
+      "fashionclip_dense": 0.4,
+      "hybrid_full": 0.8
+    },
+    "swap_rare": {
+      "vanilla_clip_dense": 0.0,
+      "fashionclip_dense": 0.4,
+      "hybrid_full": 0.6
+    },
+    "swap_common": {
+      "vanilla_clip_dense": 0.4,
+      "fashionclip_dense": 0.6,
+      "hybrid_full": 1.0
+    }
+  },
+  "mean_p5": {
+    "vanilla_clip_dense": 0.56,
+    "fashionclip_dense": 0.6799999999999999,
+    "hybrid_full": 0.76
+  },
+  "compositional": [
+    {
+      "system": "vanilla_clip_dense",
+      "p@5": 0.8,
+      "p@10": 0.6,
+      "r@10": 0.6
+    },
+    {
+      "system": "fashionclip_dense",
+      "p@5": 0.4,
+      "p@10": 0.4,
+      "r@10": 0.4
+    },
+    {
+      "system": "hybrid_full",
+      "p@5": 0.8,
+      "p@10": 0.7,
+      "r@10": 0.7
+    }
+  ],
+  "swap_match_ranks": {
+    "swap_rare": {
+      "vanilla_clip_dense": "#10, >10, >10, >10",
+      "fashionclip_dense": ">10, #2, #8, #1",
+      "hybrid_full": ">10, #3, #4, #1"
+    },
+    "swap_common": {
+      "vanilla_clip_dense": ">10, #7, >10, >10, >10, >10, >10, >10, #3, >10, #1, >10, >10, >10, >10, >10",
+      "fashionclip_dense": ">10, >10, >10, >10, #1, >10, >10, >10, #8, #9, #2, #6, #5, #10, #7, >10",
+      "hybrid_full": ">10, >10, #3, >10, #9, #4, >10, #5, >10, >10, #2, >10, #8, #10, #1, >10"
+    }
+  }
+}
