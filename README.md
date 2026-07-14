@@ -112,10 +112,20 @@ included. Syntax is the right instrument for syntax; hence the dependency tier.
 put the colour *before* the noun. Measured against a 19-construction suite, the
 original adjacency rule scored **5/19** — silently dropping the colour on *"a
 shirt that's red"* and mis-binding *"a red and white shirt"* — yet cost exactly
-0.00 P@5 on every reported number. The dependency parser takes it to **19/19**,
-and that suite is now a regression test
-([`tests/test_query_parsing.py`](tests/test_query_parsing.py)). A clean
-scoreboard is not evidence of a clean system.
+0.00 P@5 on every reported number. A clean scoreboard is not evidence of a clean
+system; that suite is now a regression test
+([`tests/test_query_parsing.py`](tests/test_query_parsing.py)).
+
+**Neither parser wins alone — so the query parser routes.** A dependency parse
+fixes all 19 constructions, but it assumes *grammatical* input. Real search
+queries often aren't: *"red shirt blue pants"* has no verb, and spaCy reads it as
+one compound noun-chain, collapsing the garments — scoring **8/12 on telegraphic
+queries, worse than the adjacency rule's 9/12**, with *active mis-bindings*
+rather than silent drops. The two fail on disjoint inputs, so `parse()`
+arbitrates: a tree that recovers fewer garments than a plain lexical scan has
+collapsed, and adjacency wins. Routing scores **18/19**, beating either parser
+alone. (A transformer parser gets 19/19 with no router — for 440 MB and ~40 ms/query
+against 12 MB and ~4 ms. One line in `config.yaml` trades up.)
 
 ---
 

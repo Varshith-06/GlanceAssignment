@@ -87,9 +87,32 @@ reranker's job.
   reproduce the adjacency heuristic, failures included. Syntax is the right
   instrument for syntax: a dependency parse maps `amod`/`acomp`/`relcl`/
   `prep`+`pobj`/`conj` onto exactly the bindings we need, offline and
-  deterministically — **19/19**. Note this bug was invisible to the benchmark
-  (all five eval queries are pre-nominal), which is why the 19-case suite is
-  now a regression test in its own right.
+  deterministically — **19/19** on the construction suite. Note this bug was
+  invisible to the benchmark (all five eval queries are pre-nominal), which is
+  why that suite is now a regression test in its own right.
+
+  *…but the syntax tier alone is not enough either, and this is why the parser
+  routes.* Dependency parsers assume **grammatical** input. Real search queries
+  often are not: "red shirt blue pants", "navy blazer grey trousers" have no
+  verb and no determiners, and the small spaCy model reads them as a single
+  compound noun-chain (`shirt --compound--> pants`), collapsing the garments and
+  re-attaching colours to the wrong nouns. On such inputs the syntax tier scores
+  **8/12 — worse than the adjacency rule's 9/12**, and its errors are *active
+  mis-bindings* rather than silent drops. So the two offline parsers fail on
+  **disjoint** inputs, and `parse()` arbitrates: if the tree recovers fewer
+  garments (or fewer bound colours) than a plain lexical scan, the tree has
+  collapsed and adjacency wins. Routing scores **18/19** overall, beating either
+  parser alone (15/19 syntax, 14/19 adjacency).
+
+  *Would a transformer parser be better?* Measured, rather than assumed — and
+  the answer is yes, at a price. Swapping spaCy's convolutional encoder for its
+  RoBERTa one (`en_core_web_trf`) scores **19/19 with no router at all**,
+  including 12/12 on the telegraphic fragments the small model mangles. It costs
+  **440 MB and ~40 ms/query against 12 MB and ~4 ms**. The default stays on the
+  small model, because the router buys back all but one case for 3% of the disk;
+  `models.spacy` in `config.yaml` trades up in one line. This is the honest shape
+  of the trade — a cheap model plus a cheap fallback rule beats a model 37× its
+  size on 18 of 19 cases.
 
   Formality/environment additionally get
   a **query-side zero-shot classification** (the query embedding scored

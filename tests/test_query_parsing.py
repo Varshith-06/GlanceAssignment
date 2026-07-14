@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from retriever.query_parser import parse_deps, parse_rules
+from retriever.query_parser import parse, parse_deps, parse_rules
 
 spacy_missing = parse_deps("a red shirt") is None
 requires_spacy = pytest.mark.skipif(
@@ -97,6 +97,53 @@ def test_swap_still_distinguished():
     assert bindings("blue shirt with red pants") == {one("shirt", "blue"),
                                                      one("pants", "red")}
     assert bindings("red shirt with blue pants") != bindings("blue shirt with red pants")
+
+
+# --- routing: telegraphic queries must NOT go through the syntax tier --------
+# Real search queries are often fragments with no verb and no determiners.
+# spaCy reads those as one compound noun chain, collapsing the garments — so
+# the router must detect the broken tree and fall back to adjacency.
+
+def routed(q):
+    out = set()
+    for g in parse(q).garments:
+        for c in ([g.color] if g.color else [None]) + list(g.alt_colors):
+            out.add((g.item, c))
+    return out
+
+
+@requires_spacy
+@pytest.mark.parametrize("query,expected", [
+    ("red shirt blue pants", {("shirt", "red"), ("pants", "blue")}),
+    ("navy blazer grey trousers", {("jacket", "navy"), ("pants", "gray")}),
+    ("yellow raincoat street", {("coat", "yellow")}),
+    ("white shirt black pants formal office",
+     {("shirt", "white"), ("pants", "black")}),
+])
+def test_telegraphic_queries_route_to_adjacency(query, expected):
+    # The syntax tier alone gets these WRONG (it drops garments into a compound
+    # chain); the router must recover them.
+    assert routed(query) == expected
+
+
+@requires_spacy
+@pytest.mark.parametrize("query,expected", [
+    ("a shirt that's red", {("shirt", "red")}),
+    ("a red and white shirt", {("shirt", "red"), ("shirt", "white")}),
+    ("a red shirt and tie", {("shirt", "red"), ("tie", "red")}),
+])
+def test_grammatical_queries_still_route_to_syntax(query, expected):
+    # ...without the router regressing the cases only the syntax tier can do.
+    assert routed(query) == expected
+
+
+@requires_spacy
+def test_colour_words_tagged_as_nouns_are_not_lost():
+    # "navy" tags as NOUN/PROPN, attaching via `compound` rather than `amod`.
+    # Reading amod alone lost it, and coordination then mis-filled the gap:
+    # the tie inherited "white" from the shirt — an active mis-binding.
+    assert routed("a man wearing a grey suit with a white shirt and a navy tie") == {
+        ("jacket", "gray"), ("shirt", "white"), ("tie", "navy")}
 
 
 # --- the adjacency fallback keeps working when spaCy is absent ---------------

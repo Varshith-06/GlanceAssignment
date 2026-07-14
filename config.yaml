@@ -13,6 +13,14 @@ models:
   fashion_clip: patrickjohncyh/fashion-clip     # CLIP fine-tuned on 800K fashion pairs
   vanilla_clip: openai/clip-vit-base-patch32    # ablation baseline only
   detector: valentinafeve/yolos-fashionpedia    # garment detector (Fashionpedia categories)
+  # Dependency parser for query-side colour->garment binding. Measured on a
+  # 19-case construction + telegraphic-query suite:
+  #   en_core_web_sm  (CNN,  12 MB,  4 ms/query): 15/19 alone, 18/19 with the
+  #                    adjacency router (see retriever/query_parser._arbitrate)
+  #   en_core_web_trf (RoBERTa, 440 MB, 40 ms/query): 19/19, router redundant
+  # Default is `sm`: the router buys back most of the gap for 3% of the disk.
+  # Swap to en_core_web_trf for the last case, if 440 MB is acceptable.
+  spacy: en_core_web_sm
 
 index:
   num_images: 3200         # full val_test2020 pool (spec minimum was 500-1000)
