@@ -1,5 +1,7 @@
 # Multimodal Fashion & Context Retrieval
 
+Built this as an assignment given during the hiring process of Glance (unicorn under InMobi) ML Interns.
+
 Natural-language image search over a fashion corpus, built to beat vanilla CLIP
 on the failure it is known for: **compositionality**. CLIP embeds an image as a
 bag of concepts — it cannot reliably tell *"red tie and white shirt"* from
